@@ -19,8 +19,28 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         content={"detail": exc.detail},
     )
 
+def _serialize_errors(errors: list) -> list:
+    """Serialize validation errors to JSON-safe format."""
+    result = []
+    for err in errors:
+        serialized = {
+            "type": err.get("type"),
+            "loc": err.get("loc"),
+            "msg": err.get("msg"),
+        }
+        # Convert ctx values to strings if present
+        if "ctx" in err:
+            ctx = err["ctx"]
+            if isinstance(ctx, dict):
+                serialized["ctx"] = {k: str(v) for k, v in ctx.items()}
+            else:
+                serialized["ctx"] = str(ctx)
+        result.append(serialized)
+    return result
+
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": exc.errors()},
+        content={"detail": _serialize_errors(exc.errors())},
     )
+

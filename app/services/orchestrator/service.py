@@ -126,7 +126,7 @@ class DecisionOrchestrator:
         context = AnalysisContext(context_type=context_type, normalized_doc=normalized_doc)
         engine = RuleEngine(DEFAULT_RULES)
         rule_results = engine.evaluate(context)
-        risk_level = self._calculate_risk_level(rule_results.risk_score)
+        risk_level = self._map_risk_level(rule_results.risk_level)
         
         # Run agents
         req_agent = RequirementAgent()
@@ -248,7 +248,7 @@ class DecisionOrchestrator:
         context = AnalysisContext(context_type=context_type, normalized_doc=normalized_doc)
         engine = RuleEngine(DEFAULT_RULES)
         rule_results = engine.evaluate(context)
-        risk_level = self._calculate_risk_level(rule_results.risk_score)
+        risk_level = self._map_risk_level(rule_results.risk_level)
         
         # =====================
         # 5. Extract change requirements
@@ -368,14 +368,15 @@ class DecisionOrchestrator:
     # Helper Methods
     # =====================
     
-    def _calculate_risk_level(self, risk_score: float) -> RiskLevel:
-        if risk_score >= 0.7:
-            return RiskLevel.CRITICAL
-        elif risk_score >= 0.5:
-            return RiskLevel.HIGH
-        elif risk_score <= 0.2:
-            return RiskLevel.LOW
-        return RiskLevel.MEDIUM
+    def _map_risk_level(self, risk_level_str: str) -> RiskLevel:
+        """Map risk level string from RuleResult to RiskLevel enum."""
+        mapping = {
+            "CRITICAL": RiskLevel.CRITICAL,
+            "HIGH": RiskLevel.HIGH,
+            "MEDIUM": RiskLevel.MEDIUM,
+            "LOW": RiskLevel.LOW,
+        }
+        return mapping.get(risk_level_str.upper(), RiskLevel.MEDIUM)
     
     def _extract_hours(self, estimation) -> Optional[float]:
         if hasattr(estimation, 'total_hours'):

@@ -8,14 +8,9 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     
     # LLM Configuration
-    LLM_PROVIDER: str = "openai"  # openai, azure, local
+    LLM_PROVIDER: str = "openai" 
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
-    
-    # Azure OpenAI (if using Azure)
-    AZURE_OPENAI_ENDPOINT: Optional[str] = None
-    AZURE_OPENAI_API_KEY: Optional[str] = None
-    AZURE_OPENAI_DEPLOYMENT: Optional[str] = None
     
     # Database Configuration
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/lucid"
