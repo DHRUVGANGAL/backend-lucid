@@ -175,13 +175,19 @@ class ArchitectureRepository(BaseRepository):
         return result.scalar_one_or_none()
     
     async def get_active_by_project(self, project_id: UUID) -> Optional[ArchitectureBaseline]:
+        """Get the active baseline for a project.
+        Returns the most recently created active baseline if multiple exist (handles legacy data).
+        """
         result = await self.session.execute(
-            select(ArchitectureBaseline).where(
+            select(ArchitectureBaseline)
+            .where(
                 ArchitectureBaseline.project_id == project_id,
                 ArchitectureBaseline.is_active == True
             )
+            .order_by(ArchitectureBaseline.version.desc())
+            .limit(1)
         )
-        return result.scalar_one_or_none()
+        return result.scalars().first()
     
     async def get_all_by_project(self, project_id: UUID) -> List[ArchitectureBaseline]:
         result = await self.session.execute(

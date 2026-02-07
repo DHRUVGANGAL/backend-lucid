@@ -19,9 +19,13 @@ class LLMClient:
         return cls._instance
 
     def _get_provider(self) -> BaseLLMProvider:
-        if settings.LLM_PROVIDER == "openai":
-            from app.core.llm.providers.openai import OpenAIProvider
-            return OpenAIProvider()
+        if settings.LLM_PROVIDER == "gemini":
+            from app.core.llm.providers.gemini import GeminiProvider
+            return GeminiProvider()
+        elif settings.LLM_PROVIDER == "openai":
+            # from app.core.llm.providers.openai import OpenAIProvider
+            # return OpenAIProvider()
+            raise NotImplementedError("OpenAI provider is currently commented out")
         elif settings.LLM_PROVIDER == "azure":
             # Future: from app.core.llm.providers.azure import AzureOpenAIProvider
             raise NotImplementedError("Azure provider not yet implemented")

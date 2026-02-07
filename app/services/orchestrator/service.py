@@ -120,7 +120,7 @@ class DecisionOrchestrator:
         
         # Normalize
         normalizer = NormalizationService()
-        normalized_doc = normalizer.normalize(extracted_text)
+        normalized_doc = await normalizer.normalize(extracted_text)
         
         # Apply rules
         context = AnalysisContext(context_type=context_type, normalized_doc=normalized_doc)
@@ -161,6 +161,9 @@ class DecisionOrchestrator:
         
         # Persist decision
         estimated_hours = self._extract_hours(estimation)
+        estimated_cost = self._extract_cost(estimation)
+        timeline_weeks = self._extract_timeline(estimation)
+        
         decision_id = await self._writer.persist_decision(
             project_id=project_id,
             title=f"Initial Decision: {filename}",
@@ -174,6 +177,8 @@ class DecisionOrchestrator:
             rule_results=asdict(rule_results),
             executive_summary=self._safe_dump(explanation),
             estimated_hours=estimated_hours,
+            estimated_cost=estimated_cost,
+            timeline_weeks=timeline_weeks,
         )
         
         # Store in Supermemory
@@ -240,7 +245,7 @@ class DecisionOrchestrator:
         # 3. Normalize change request
         # =====================
         normalizer = NormalizationService()
-        normalized_doc = normalizer.normalize(extracted_text)
+        normalized_doc = await normalizer.normalize(extracted_text)
         
         # =====================
         # 4. Apply rules with existing context
@@ -319,6 +324,8 @@ class DecisionOrchestrator:
         # 10. Persist Decision (linked to previous)
         # =====================
         estimated_hours = self._extract_hours(estimation)
+        estimated_cost = self._extract_cost(estimation)
+        timeline_weeks = self._extract_timeline(estimation)
         
         # Include reference to previous baseline (no overwrite)
         existing_baseline_id = None
@@ -343,6 +350,8 @@ class DecisionOrchestrator:
             rule_results=asdict(rule_results),
             executive_summary=self._safe_dump(explanation),
             estimated_hours=estimated_hours,
+            estimated_cost=estimated_cost,
+            timeline_weeks=timeline_weeks,
         )
         
         # =====================
@@ -383,6 +392,18 @@ class DecisionOrchestrator:
             return estimation.total_hours
         elif hasattr(estimation, 'estimated_hours'):
             return estimation.estimated_hours
+        return None
+    
+    def _extract_cost(self, estimation) -> Optional[str]:
+        """Extract cost estimate from estimation object."""
+        if hasattr(estimation, 'cost_estimate'):
+            return estimation.cost_estimate
+        return None
+    
+    def _extract_timeline(self, estimation) -> Optional[float]:
+        """Extract timeline in weeks from estimation object."""
+        if hasattr(estimation, 'timeline_weeks'):
+            return estimation.timeline_weeks
         return None
     
     def _safe_dump(self, obj) -> Optional[dict]:

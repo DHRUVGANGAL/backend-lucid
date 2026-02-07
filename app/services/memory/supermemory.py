@@ -1,6 +1,7 @@
 from typing import List, Optional, Dict, Any
 from uuid import UUID
 from datetime import datetime
+import structlog
 
 from qdrant_client import AsyncQdrantClient
 from qdrant_client.models import (
@@ -18,11 +19,13 @@ from app.core.llm.embeddings import EmbeddingClient
 from app.services.memory.models import MemoryEntry, BiasSignal, RecallResult
 from app.models.enums import RiskLevel
 
+logger = structlog.get_logger(__name__)
+
 
 class SupermemoryService:
     """
     Production Supermemory service using Qdrant for vector storage
-    and OpenAI embeddings.
+    and Gemini embeddings.
     
     This is a semantic memory layer that:
     - Stores decision summaries as vectors
@@ -34,7 +37,7 @@ class SupermemoryService:
     decision_id from the primary database.
     """
     
-    VECTOR_SIZE = 1536
+    VECTOR_SIZE = 3072  # gemini-embedding-001 dimensions
     COLLECTION_NAME = settings.QDRANT_COLLECTION
     
     _instance: "SupermemoryService" = None
@@ -58,23 +61,47 @@ class SupermemoryService:
         self._embedding_client = EmbeddingClient.get_instance()
     
     async def _initialize(self):
-        """Initialize Qdrant collection if not exists."""
+        """Initialize Qdrant collection if not exists or recreate if vector size changed."""
         if self._initialized:
             return
+        
+        logger.info("Initializing Supermemory service", collection=self.COLLECTION_NAME)
         
         collections = await self._client.get_collections()
         collection_names = [c.name for c in collections.collections]
         
-        if self.COLLECTION_NAME not in collection_names:
-            await self._client.create_collection(
-                collection_name=self.COLLECTION_NAME,
-                vectors_config=VectorParams(
-                    size=self.VECTOR_SIZE,
-                    distance=Distance.COSINE,
-                ),
-            )
+        if self.COLLECTION_NAME in collection_names:
+            # Check if existing collection has the right vector size
+            collection_info = await self._client.get_collection(self.COLLECTION_NAME)
+            existing_size = collection_info.config.params.vectors.size
+            
+            if existing_size != self.VECTOR_SIZE:
+                logger.warning(
+                    "Collection vector size mismatch, recreating collection",
+                    existing_size=existing_size,
+                    required_size=self.VECTOR_SIZE,
+                )
+                await self._client.delete_collection(self.COLLECTION_NAME)
+                await self._create_collection()
+            else:
+                logger.info("Collection already exists with correct dimensions", size=existing_size)
+        else:
+            await self._create_collection()
         
         self._initialized = True
+        logger.info("Supermemory service initialized successfully")
+    
+    async def _create_collection(self):
+        """Create the Qdrant collection with correct vector size."""
+        logger.info("Creating Qdrant collection", collection=self.COLLECTION_NAME, vector_size=self.VECTOR_SIZE)
+        await self._client.create_collection(
+            collection_name=self.COLLECTION_NAME,
+            vectors_config=VectorParams(
+                size=self.VECTOR_SIZE,
+                distance=Distance.COSINE,
+            ),
+        )
+        logger.info("Collection created successfully")
     
     # =====================
     # Store Operations
@@ -107,8 +134,16 @@ class SupermemoryService:
         Returns:
             The stored MemoryEntry
         """
+        logger.info(
+            "Storing decision in Supermemory",
+            decision_id=str(decision_id),
+            project_id=str(project_id),
+            summary_length=len(summary),
+        )
+        
         # Generate embedding
         embedding = await self._embedding_client.embed(summary)
+        logger.info("Embedding generated", dimensions=len(embedding))
         
         # Prepare payload (no raw text stored)
         payload = {
@@ -133,6 +168,7 @@ class SupermemoryService:
             collection_name=self.COLLECTION_NAME,
             points=[point],
         )
+        logger.info("Decision stored in Qdrant successfully", decision_id=str(decision_id))
         
         return MemoryEntry(
             decision_id=decision_id,

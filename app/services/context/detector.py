@@ -2,6 +2,9 @@ from typing import Tuple
 from pydantic import BaseModel, Field
 from app.services.context.enums import ContextType
 from app.core.llm.client import LLMClient
+import structlog
+
+logger = structlog.get_logger(__name__)
 
 class ContextDetectionResult(BaseModel):
     context_type: str = Field(..., description="One of: initial_requirement, change_request, unknown")
@@ -49,6 +52,7 @@ class ContextDetector:
         
         # If confidence is low, use LLM for better classification
         if confidence < 0.7:
+            logger.info("Low confidence from heuristic check, using LLM for classification")
             context_type, confidence = await self._llm_check(text)
         
         return context_type, confidence

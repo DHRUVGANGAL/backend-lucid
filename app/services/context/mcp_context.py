@@ -165,8 +165,10 @@ class MCPContextService:
                 ArchitectureBaseline.project_id == project_id,
                 ArchitectureBaseline.is_active == True
             )
+            .order_by(ArchitectureBaseline.version.desc())
+            .limit(1)
         )
-        baseline = result.scalar_one_or_none()
+        baseline = result.scalars().first()
         
         if not baseline:
             return None
