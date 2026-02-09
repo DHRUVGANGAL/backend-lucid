@@ -54,8 +54,9 @@ class SupermemoryService:
     
     def __init__(self):
         self._client = AsyncQdrantClient(
-            host=settings.QDRANT_HOST,
-            port=settings.QDRANT_PORT,
+            # host=settings.QDRANT_HOST,
+            # port=settings.QDRANT_PORT,
+            url=settings.QDRANT_URL,
             api_key=settings.QDRANT_API_KEY,
         )
         self._embedding_client = EmbeddingClient.get_instance()
@@ -85,6 +86,8 @@ class SupermemoryService:
                 await self._create_collection()
             else:
                 logger.info("Collection already exists with correct dimensions", size=existing_size)
+                # Ensure payload indexes exist (for Qdrant Cloud)
+                await self._create_payload_indexes()
         else:
             await self._create_collection()
         
@@ -92,7 +95,7 @@ class SupermemoryService:
         logger.info("Supermemory service initialized successfully")
     
     async def _create_collection(self):
-        """Create the Qdrant collection with correct vector size."""
+        """Create the Qdrant collection with correct vector size and payload indexes."""
         logger.info("Creating Qdrant collection", collection=self.COLLECTION_NAME, vector_size=self.VECTOR_SIZE)
         await self._client.create_collection(
             collection_name=self.COLLECTION_NAME,
@@ -101,7 +104,31 @@ class SupermemoryService:
                 distance=Distance.COSINE,
             ),
         )
+        
+        # Create payload indexes for filtering (required for Qdrant Cloud)
+        await self._create_payload_indexes()
         logger.info("Collection created successfully")
+    
+    async def _create_payload_indexes(self):
+        """Create payload indexes for efficient filtering."""
+        from qdrant_client.models import PayloadSchemaType
+        
+        indexes_to_create = [
+            ("project_id", PayloadSchemaType.KEYWORD),
+            ("risk_level", PayloadSchemaType.KEYWORD),
+            ("decision_id", PayloadSchemaType.KEYWORD),
+        ]
+        
+        for field_name, field_type in indexes_to_create:
+            try:
+                await self._client.create_payload_index(
+                    collection_name=self.COLLECTION_NAME,
+                    field_name=field_name,
+                    field_schema=field_type,
+                )
+                logger.info("Created payload index", field=field_name)
+            except Exception as e:
+                logger.warning("Failed to create payload index", field=field_name, error=str(e))
     
     # =====================
     # Store Operations
@@ -298,15 +325,18 @@ class SupermemoryService:
             )
         ]
         
-        results = await self._client.scroll(
-            collection_name=self.COLLECTION_NAME,
-            scroll_filter=Filter(must=filter_conditions),
-            limit=limit,
-            with_payload=True,
-            with_vectors=False,
-        )
-        
-        entries = self._scroll_to_entries(results[0])
+        try:
+            results, _ = await self._client.scroll(
+                collection_name=self.COLLECTION_NAME,
+                scroll_filter=Filter(must=filter_conditions),
+                limit=limit,
+                with_payload=True,
+                with_vectors=False,
+            )
+            entries = self._scroll_to_entries(results)
+        except Exception as e:
+            logger.warning("Failed to scroll collection, returning empty result", error=str(e))
+            entries = []
         
         return RecallResult(
             entries=entries,

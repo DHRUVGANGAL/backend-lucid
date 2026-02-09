@@ -4,7 +4,7 @@ from typing import List, Optional
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Lucid"
     API_V1_STR: str = "/api/v1"
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    BACKEND_CORS_ORIGINS: List[str] = ["https://frontend-lucid-sigma.vercel.app", "http://localhost:5173"]
     DEBUG: bool = False
     
     # LLM Configuration
@@ -18,9 +18,10 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/lucid"
     DATABASE_ECHO: bool = False
     
-    # Qdrant Configuration
-    QDRANT_HOST: str = "localhost"
-    QDRANT_PORT: int = 6333
+    # Qdrant Configuration (Cloud)
+    # QDRANT_HOST: str = "localhost"
+    # QDRANT_PORT: int = 6333
+    QDRANT_URL: str = "http://localhost:6333"
     QDRANT_API_KEY: Optional[str] = None
     QDRANT_COLLECTION: str = "supermemory"
     
